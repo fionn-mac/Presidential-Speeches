@@ -10,10 +10,10 @@ class Data(object):
         self.max_length = max_length
         self.use_cuda = torch.cuda.is_available()
 
-        self.vocab = set("<PAD>", "<SOS>", "<EOS>", "<UNK>")
+        self.vocab = set(["<PAD>", "<SOS>", "<EOS>", "<UNK>"])
         self.word2index = {"<PAD>" : 0, "<SOS>" : 1, "<EOS>" : 2, "<UNK>" : 3}
         self.index2word = ["<PAD>", "<SOS>", "<EOS>", "<UNK>"]
-        self.word2count = {}
+        self.word2count = {"<PAD>" : 0, "<SOS>" : 0, "<EOS>" : 0, "<UNK>" : 0}
         self.vocab_size = 4
 
         self.x_train = list()
@@ -51,10 +51,11 @@ class Data(object):
         for data in [self.x_train, self.x_val, self.y_train, self.y_val]:
             for i, sentence in enumerate(data):
                 data[i] = torch.LongTensor(sentence)
+                if self.use_cuda: data[i].cuda()
 
     def run(self):
         data = []
-        with open(file) as f:
+        with open(self.file_path) as f:
             lines = f.readlines()
 
             for line in lines:

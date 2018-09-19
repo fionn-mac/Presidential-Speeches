@@ -15,13 +15,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", "--num_iters", type=int, help="Number of iterations over the training set.", default=15)
     parser.add_argument("-nl", "--num_layers", type=int, help="Number of layers in Language Model.", default=2)
-    parser.add_argument("-z", "--hidden_size", type=int, help="LSTM Hidden State Size", default=1024)
+    parser.add_argument("-z", "--hidden_size", type=int, help="LSTM Hidden State Size", default=128)
     parser.add_argument("-b", "--batch_size", type=int, help="Batch Size", default=32)
     parser.add_argument("-lr", "--learning_rate", type=float, help="Learning rate of optimiser.", default=0.001)
 
     parser.add_argument("-l", "--max_length", type=int, help="Maximum Sentence Length.", default=20)
-    parser.add_argument("-tp", "--tracking_seed", type='str', help="Track change in outputs for a particular seed.", default='None')
-    parser.add_argument("-d", "--dataset", type=str, help="Dataset directory.", default='./Datasets/Obama/')
+    parser.add_argument("-tp", "--tracking_seed", type=str, help="Track change in outputs for a particular seed.", default='None')
+    parser.add_argument("-d", "--dataset", type=str, help="Data file path.", default='./Dataset/obama.txt')
     parser.add_argument("-w", "--weights_file", type=str, help="Filename in which model weights would be saved.", default='obama_lm.pt')
     parser.add_argument("-e", "--embedding_file", type=str, help="File containing word embeddings.", default='../Embeddings/GoogleNews/GoogleNews-vectors-negative300.bin.gz')
 
@@ -39,8 +39,8 @@ if __name__ == "__main__":
     print('Reading input data.')
     data = Data(args.dataset, max_length=args.max_length)
 
-    print("Number of training Samples       :", len(data.train_in_seq))
-    print("Number of validation Samples     :", len(data.val_in_seq))
+    print("Number of training Samples       :", len(data.x_train))
+    print("Number of validation Samples     :", len(data.x_val))
 
     print('Creating Word Embedding.')
 
@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     print("Training Network.")
 
-    train_network = Train_Network(language_model, data.index2word, num_layers=args.num_layers)
+    train_network = Train_Network(language_model, data.index2word)
 
     run_iterations = Run_Iterations(train_network, data.x_train, data.y_train, data.index2word,
                                     args.batch_size, args.num_iters, args.learning_rate,

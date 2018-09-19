@@ -6,8 +6,6 @@ import torch.nn as nn
 from torch import optim
 import numpy as np
 
-from nltk import bleu_score
-
 from helper import Helper
 
 class Run_Iterations(object):
@@ -77,8 +75,8 @@ class Run_Iterations(object):
         # self.help_fn.show_plot(plot_losses)
 
     def evaluate_specific(self, in_seq, out_seq, seed_length):
-        input = [self.index2word[j] for j in in_seq]
-        output = [self.index2word[j] for j in out_seq]
+        input = [self.index2word[j] for j in in_seq[0]]
+        output = [self.index2word[j] for j in out_seq[0]]
         print('>', input)
         print('~', seed_length)
 
@@ -93,13 +91,15 @@ class Run_Iterations(object):
         output_sentence = ' '.join(output_words)
         print('<', output_sentence)
 
-        print('BLEU Score', bleu_score.corpus_bleu([output_sentence], [output]))
         print('-----------------------------------------------------------------')
 
     def evaluate_randomly(self, n=10):
         for i in range(n):
             ind = random.randrange(self.val_samples)
-            for seed_length in range(len(self.val_in_seq[ind])//2):
-                self.evaluate_specific(self.val_in_seq[ind], self.val_out_seq[ind], seed_length)
+            for seed_length in range(1, len(self.val_in_seq[ind])//2):
+                # Get output for given seed
+                self.evaluate_specific(self.val_in_seq[ind].view(1, -1),
+                                       self.val_out_seq[ind].view(1, -1),
+                                       seed_length)
 
             print('\n')

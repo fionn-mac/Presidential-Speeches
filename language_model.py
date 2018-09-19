@@ -10,6 +10,8 @@ class Language_Model(nn.Module):
         super(Language_Model, self).__init__()
         self.use_cuda = torch.cuda.is_available()
         self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.num_layers = num_layers
         self.dropout_p = dropout_p
 
         if use_embedding:
