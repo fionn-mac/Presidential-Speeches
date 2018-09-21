@@ -16,10 +16,6 @@ class Train_Network(object):
         input_variables = torch.nn.utils.rnn.pad_sequence(input_variables)
         target_variables = torch.nn.utils.rnn.pad_sequence(target_variables)
 
-        if self.use_cuda:
-            input_variables = input_variables.cuda()
-            target_variables = target_variables.cuda()
-
         batch_size = input_variables.size()[1]
         target_length = target_variables.size()[0]
 
@@ -35,7 +31,7 @@ class Train_Network(object):
             # Teacher forcing: Feed the target as the next input
             for di in range(target_length):
                 lm_outputs, lm_hidden = self.lm(lm_inputs, lm_hidden)
-                loss += criterion(lm_outputs, target_variable[di])
+                loss += criterion(lm_outputs, target_variables[di, :])
                 lm_inputs = target_variables[di, :].view(1, -1)  # Teacher forcing
 
         else:
@@ -52,19 +48,19 @@ class Train_Network(object):
         return loss.item() / target_length
 
     def evaluate(self, input_variables, seed_length):
-        ''' Pad all tensors in this batch to same length. '''
-        input_variables = torch.nn.utils.rnn.pad_sequence(input_variables)
-
-        if self.use_cuda: input_variables = input_variables.cuda()
-
-        target_length = input_variables.size()[0]
-        batch_size = input_variables.size()[1]
-        lm_inputs = input_variables[0, :].view(1, -1)
-        lm_hidden = self.lm.init_hidden(batch_size)
-
-        output_words = [[] for i in range(batch_size)]
-
         with torch.no_grad():
+            ''' Pad all tensors in this batch to same length. '''
+            input_variables = torch.nn.utils.rnn.pad_sequence(input_variables)
+
+            if self.use_cuda: input_variables = input_variables.cuda()
+
+            target_length = input_variables.size()[0]
+            batch_size = input_variables.size()[1]
+            lm_inputs = input_variables[0, :].view(1, -1)
+            lm_hidden = self.lm.init_hidden(batch_size)
+
+            output_words = [[] for i in range(batch_size)]
+
             for di in range(target_length):
                 lm_outputs, lm_hidden = self.lm(lm_inputs, lm_hidden)
 

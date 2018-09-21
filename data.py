@@ -51,7 +51,7 @@ class Data(object):
         for data in [self.x_train, self.x_val, self.y_train, self.y_val]:
             for i, sentence in enumerate(data):
                 data[i] = torch.LongTensor(sentence)
-                if self.use_cuda: data[i].cuda()
+                if self.use_cuda: data[i] = data[i].cuda()
 
     def run(self):
         data = []
