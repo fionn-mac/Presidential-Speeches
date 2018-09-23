@@ -4,9 +4,10 @@ import unicodedata
 import torch
 
 class Data(object):
-    def __init__(self, file_path, train_ratio=0.8, max_length=10):
+    def __init__(self, file_path, train_ratio=0.8, min_length=5, max_length=20):
         self.file_path = file_path
         self.train_ratio = train_ratio
+        self.min_length = min_length
         self.max_length = max_length
         self.use_cuda = torch.cuda.is_available()
 
@@ -51,7 +52,6 @@ class Data(object):
         for data in [self.x_train, self.x_val, self.y_train, self.y_val]:
             for i, sentence in enumerate(data):
                 data[i] = torch.LongTensor(sentence)
-                if self.use_cuda: data[i] = data[i].cuda()
 
     def run(self):
         data = []
@@ -59,7 +59,10 @@ class Data(object):
             lines = f.readlines()
 
             for line in lines:
-                data.append(["<SOS>"] + line.split())
+                line = line.split()
+                length = len(line)
+                if length >= self.min_length and length <= self.max_length:
+                    data.append(["<SOS>"] + line)
 
             n_data = len(data)
             print('Read %d lines' % (n_data))

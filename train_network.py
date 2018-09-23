@@ -51,7 +51,6 @@ class Train_Network(object):
         with torch.no_grad():
             ''' Pad all tensors in this batch to same length. '''
             input_variables = torch.nn.utils.rnn.pad_sequence(input_variables)
-
             if self.use_cuda: input_variables = input_variables.cuda()
 
             target_length = input_variables.size()[0]

@@ -19,7 +19,9 @@ if __name__ == "__main__":
     parser.add_argument("-b", "--batch_size", type=int, help="Batch Size", default=32)
     parser.add_argument("-lr", "--learning_rate", type=float, help="Learning rate of optimiser.", default=0.01)
 
-    parser.add_argument("-l", "--max_length", type=int, help="Maximum Sentence Length.", default=20)
+    parser.add_argument("-l0", "--min_length", type=int, help="Minimum Sentence Length.", default=5)
+    parser.add_argument("-l1", "--max_length", type=int, help="Maximum Sentence Length.", default=20)
+    parser.add_argument("-f", "--fold_size", type=int, help="Size of chunks into which training data must be broken.", default=500000)
     parser.add_argument("-ts", "--tracking_seed", type=str, help="Track change in outputs for a particular seed.", default=None)
     parser.add_argument("-d", "--dataset", type=str, help="Data file path.", default='./Dataset/Pre-Train/wikitext-103-v1/pretrain.txt')
     parser.add_argument("-w", "--weights_file", type=str, help="Filename in which model weights would be saved.", default='pretrain_lm.pt')
@@ -37,7 +39,7 @@ if __name__ == "__main__":
     print('------------------------------------------------\n')
 
     print('Reading input data.')
-    data = Data(args.dataset, max_length=args.max_length)
+    data = Data(args.dataset, min_length=args.min_length, max_length=args.max_length)
 
     print("Number of training Samples       :", len(data.x_train))
     print("Number of validation Samples     :", len(data.x_val))
@@ -58,7 +60,8 @@ if __name__ == "__main__":
 
     run_iterations = Run_Iterations(train_network, data.x_train, data.y_train, data.word2index,
                                     data.index2word, args.batch_size, args.num_iters, args.learning_rate,
-                                    tracking_seed=args.tracking_seed, val_in_seq=data.x_val, val_out_seq=data.y_val)
+                                    tracking_seed=args.tracking_seed, val_in_seq=data.x_val,
+                                    val_out_seq=data.y_val, fold_size=args.fold_size)
 
     run_iterations.train_iters()
     run_iterations.evaluate_randomly()

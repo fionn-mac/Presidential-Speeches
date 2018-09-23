@@ -1,6 +1,8 @@
 import time
 import random
 
+from os import system
+
 import torch
 import torch.nn as nn
 from torch import optim
@@ -11,7 +13,7 @@ from helper import Helper
 class Run_Iterations(object):
     def __init__(self, model, train_in_seq, train_out_seq, word2index, index2word,
                  batch_size, num_iters, learning_rate, tracking_seed=None,
-                 val_in_seq=[], val_out_seq=[], print_every=1, plot_every=1):
+                 val_in_seq=[], val_out_seq=[], fold_size=None, print_every=1, plot_every=1):
         self.use_cuda = torch.cuda.is_available()
         self.model = model
         self.batch_size = batch_size
@@ -28,6 +30,8 @@ class Run_Iterations(object):
         self.train_in_seq = train_in_seq
         self.train_out_seq = train_out_seq
         self.train_samples = len(self.train_in_seq)
+        self.fold_size = self.train_samples
+        if fold_size: self.fold_size = fold_size
 
         # Validation data.
         self.val_in_seq = val_in_seq
@@ -57,34 +61,61 @@ class Run_Iterations(object):
 
         print('Beginning Model Training.')
 
-        for epoch in range(1, self.num_iters + 1):
-            for i in range(0, self.train_samples, self.batch_size):
-                input_variables = self.train_in_seq[i : i + self.batch_size] # Batch Size x Sequence Length
-                target_variables = self.train_in_seq[i : i + self.batch_size] # Batch Size x Sequence Length
+        in_folds = []
+        out_folds = []
+        for i in range(0, self.train_samples, self.fold_size):
+            in_folds.append(self.train_in_seq[i : i + self.fold_size])
+            out_folds.append(self.train_out_seq[i : i + self.fold_size])
 
-                loss = self.model.train(input_variables, target_variables, self.criterion, lm_optimizer)
-                print_loss_total += loss
-                plot_loss_total += loss
+        self.train_in_seq = in_folds
+        self.train_out_seq = out_folds
+        del in_folds, out_folds
 
-                # now = time.time()
-                # print('Completed %.4f Percent of Epoch %d in %s Minutes' % ((i + self.batch_size)/ self.train_samples * 100,
-                #                                                             epoch, self.help_fn.as_minutes(now - start)))
+        fraction = self.train_samples // 10
 
-            if self.tracking_seed:
-                self.evaluate_specific(self.tracking_seed, self.tracking_seed, self.tracking_seed.size()[0])
+        fold_number = 1
+        for in_fold, out_fold in zip(self.train_in_seq, self.train_out_seq):
+            # Convert fold contents to cuda
+            if self.use_cuda:
+                in_fold = self.help_fn.to_cuda(in_fold)
+                out_fold = self.help_fn.to_cuda(out_fold)
 
-            if epoch % self.print_every == 0:
-                print_loss_avg = print_loss_total / self.print_every
-                print_loss_total = 0
-                print('%s (%d %d%%) %.4f' % (self.help_fn.time_slice(start, epoch / self.num_iters),
-                                             epoch, epoch / self.num_iters * 100, print_loss_avg))
+            fold_size = len(in_fold)
 
-            if epoch % self.plot_every == 0:
-                plot_loss_avg = plot_loss_total / self.plot_every
-                plot_losses.append(plot_loss_avg)
-                plot_loss_total = 0
+            print('Starting Fold  :', fold_number)
 
-        self.help_fn.show_plot(plot_losses)
+            for epoch in range(1, self.num_iters + 1):
+                for i in range(0, fold_size, self.batch_size):
+                    input_variables = in_fold[i : i + self.batch_size] # Batch Size x Sequence Length
+                    target_variables = out_fold[i : i + self.batch_size] # Batch Size x Sequence Length
+
+                    loss = self.model.train(input_variables, target_variables, self.criterion, lm_optimizer)
+                    print_loss_total += loss
+                    plot_loss_total += loss
+
+                    if i > 0 and (i - self.batch_size) // fraction < i // fraction:
+                        now = time.time()
+                        print('Completed %.4f Percent of Epoch %d in %s Minutes' % ((i + self.batch_size) / fold_size * 100,
+                                                                                    epoch, self.help_fn.as_minutes(now - start)))
+
+                        if isinstance(self.tracking_seed, torch.Tensor):
+                            self.evaluate_specific(self.tracking_seed, self.tracking_seed, self.tracking_seed.size()[0])
+
+                if epoch % self.print_every == 0:
+                    print_loss_avg = print_loss_total / self.print_every
+                    print_loss_total = 0
+                    print('%s (%d %d%%) %.4f' % (self.help_fn.time_slice(start, epoch / self.num_iters),
+                                                 epoch, epoch / self.num_iters * 100, print_loss_avg))
+
+                if epoch % self.plot_every == 0:
+                    plot_loss_avg = plot_loss_total / self.plot_every
+                    plot_losses.append(plot_loss_avg)
+                    plot_loss_total = 0
+
+            del in_fold, out_fold
+            self.help_fn.show_plot(plot_losses)
+            fold_number += 1
+            print('\n')
 
     def evaluate_specific(self, in_seq, out_seq, seed_length):
         input = [self.index2word[j] for j in in_seq[0]]
@@ -108,7 +139,7 @@ class Run_Iterations(object):
     def evaluate_randomly(self, n=10):
         for i in range(n):
             ind = random.randrange(self.val_samples)
-            for seed_length in range(1, len(self.val_in_seq[ind])//2, 3):
+            for seed_length in range(1, len(self.val_in_seq[ind]) // 2, 3):
                 # Get output for given seed
                 self.evaluate_specific(self.val_in_seq[ind].view(1, -1),
                                        self.val_out_seq[ind].view(1, -1),
