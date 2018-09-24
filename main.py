@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
     print("Training Network.")
 
-    train_network = Train_Network(language_model, data.index2word)
+    train_network = Train_Network(language_model, data.index2word, max_length=args.max_length)
 
     run_iterations = Run_Iterations(train_network, data.x_train, data.y_train, data.word2index,
                                     data.index2word, args.batch_size, args.num_iters, args.learning_rate,

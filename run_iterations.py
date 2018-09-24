@@ -13,7 +13,7 @@ from helper import Helper
 class Run_Iterations(object):
     def __init__(self, model, train_in_seq, train_out_seq, word2index, index2word,
                  batch_size, num_iters, learning_rate, tracking_seed=None,
-                 val_in_seq=[], val_out_seq=[], fold_size=None, print_every=1, plot_every=1):
+                 val_in_seq=[], val_out_seq=[], fold_size=500000, print_every=1, plot_every=1):
         self.use_cuda = torch.cuda.is_available()
         self.model = model
         self.batch_size = batch_size
@@ -71,8 +71,6 @@ class Run_Iterations(object):
         self.train_out_seq = out_folds
         del in_folds, out_folds
 
-        fraction = self.train_samples // 10
-
         fold_number = 1
         for in_fold, out_fold in zip(self.train_in_seq, self.train_out_seq):
             # Convert fold contents to cuda
@@ -81,6 +79,7 @@ class Run_Iterations(object):
                 out_fold = self.help_fn.to_cuda(out_fold)
 
             fold_size = len(in_fold)
+            fraction = fold_size // 10
 
             print('Starting Fold  :', fold_number)
 

@@ -3,10 +3,11 @@ import random
 import torch
 
 class Train_Network(object):
-    def __init__(self, lm, index2word, teacher_forcing_ratio=0.5):
+    def __init__(self, lm, index2word, teacher_forcing_ratio=0.5, max_length=20):
         self.lm = lm
         self.index2word = index2word
         self.teacher_forcing_ratio = teacher_forcing_ratio
+        self.max_length = max_length
         self.SOS_token = 1
         self.EOS_token = 2
         self.use_cuda = torch.cuda.is_available()
@@ -53,14 +54,13 @@ class Train_Network(object):
             input_variables = torch.nn.utils.rnn.pad_sequence(input_variables)
             if self.use_cuda: input_variables = input_variables.cuda()
 
-            target_length = input_variables.size()[0]
             batch_size = input_variables.size()[1]
             lm_inputs = input_variables[0, :].view(1, -1)
             lm_hidden = self.lm.init_hidden(batch_size)
 
             output_words = [[] for i in range(batch_size)]
 
-            for di in range(target_length):
+            for di in range(self.max_length):
                 lm_outputs, lm_hidden = self.lm(lm_inputs, lm_hidden)
 
                 topv, topi = lm_outputs.data.topk(1)
