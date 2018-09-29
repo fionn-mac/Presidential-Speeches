@@ -19,10 +19,16 @@ class Data(object):
 
         self.x_train = list()
         self.y_train = list()
+        self.len_train = list()
         self.x_val = list()
         self.y_val = list()
+        self.len_val = list()
 
         self.run()
+
+    def get_lengths(self):
+        self.len_train = [len(sentence) for sentence in self.x_train]
+        self.len_val = [len(sentence) for sentence in self.x_val]
 
     def create_vocabulary(self):
         for sentence in self.x_train:
@@ -70,9 +76,10 @@ class Data(object):
             self.x_train = data[:int(self.train_ratio*n_data)]
             self.x_val = data[int(self.train_ratio*n_data):]
 
-            self.x_train = sorted(self.x_train, key=len)
-            self.x_val = sorted(self.x_val, key=len)
+            self.x_train = sorted(self.x_train, key=len, reverse=True)
+            self.x_val = sorted(self.x_val, key=len, reverse=True)
 
+            self.get_lengths()
             self.create_vocabulary()
             self.replace_unk()
 

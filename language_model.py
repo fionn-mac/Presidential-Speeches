@@ -1,8 +1,5 @@
 import torch
 import torch.nn as nn
-from torch import Tensor
-from torch import optim
-import torch.nn.functional as F
 
 class Language_Model(nn.Module):
     def __init__(self, hidden_size, output_size, embedding, num_layers=1, dropout_p=0.1,
@@ -28,19 +25,34 @@ class Language_Model(nn.Module):
         self.lstm = nn.LSTM(self.input_size, self.hidden_size, num_layers=num_layers, bidirectional=False)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
-    def forward(self, input, hidden):
+    def forward(self, input, input_lengths, hidden):
+        '''
+        input           -> (Max. Sequence Length x Batch Size)
+        hidden          -> (Num. Layers x Batch Size x Hidden Size)
+        '''
+        batch_size = input.size()[1]
+        features = self.embedding(input) # (L, B, V)
+
+        packed = nn.utils.rnn.pack_padded_sequence(features, input_lengths)
+        outputs, hidden = self.lstm(packed, hidden)  # (L, B, V)
+        outputs, output_lengths = nn.utils.rnn.pad_packed_sequence(outputs)
+
+        decoded = self.out(outputs).permute(1, 2, 0) # (B, vocab_size, L)
+
+        return decoded, hidden
+
+    def predict(self, input, hidden):
         '''
         input           -> (1 x Batch Size)
-        hidden          -> (Num. Layers * Num. Directions x Batch Size x Hidden Size)
+        hidden          -> (Num. Layers x Batch Size x Hidden Size)
         '''
         batch_size = input.size()[1]
         features = self.embedding(input) # (1, B, V)
 
-        output, hidden = self.lstm(features, hidden)
-        output = output.squeeze(0) # (1, B, V) -> (B, V)
+        outputs, hidden = self.lstm(features, hidden)  # (1, B, V)
+        decoded = self.out(outputs).squeeze(0) # (B, V)
 
-        output = F.log_softmax(self.out(output), dim=1)
-        return output, hidden
+        return decoded, hidden
 
     def init_weights(self):
         ''' Initialize weights of lstm '''

@@ -15,7 +15,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", "--num_iters", type=int, help="Number of iterations over the training set.", default=15)
     parser.add_argument("-nl", "--num_layers", type=int, help="Number of layers in Language Model.", default=2)
-    parser.add_argument("-z", "--hidden_size", type=int, help="LSTM Hidden State Size", default=128)
+    parser.add_argument("-z", "--hidden_size", type=int, help="LSTM Hidden State Size", default=256)
     parser.add_argument("-b", "--batch_size", type=int, help="Batch Size", default=32)
     parser.add_argument("-lr", "--learning_rate", type=float, help="Learning rate of optimiser.", default=0.01)
 
@@ -58,9 +58,9 @@ if __name__ == "__main__":
 
     train_network = Train_Network(language_model, data.index2word, max_length=args.max_length)
 
-    run_iterations = Run_Iterations(train_network, data.x_train, data.y_train, data.word2index,
+    run_iterations = Run_Iterations(train_network, data.x_train, data.len_train, data.y_train, data.word2index,
                                     data.index2word, args.batch_size, args.num_iters, args.learning_rate,
-                                    tracking_seed=args.tracking_seed, val_in_seq=data.x_val,
+                                    tracking_seed=args.tracking_seed, val_in_seq=data.x_val, val_len=data.len_val,
                                     val_out_seq=data.y_val, fold_size=args.fold_size)
 
     run_iterations.train_iters()
