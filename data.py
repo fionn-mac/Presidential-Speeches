@@ -4,7 +4,7 @@ import unicodedata
 import torch
 
 class Data(object):
-    def __init__(self, file_path, train_ratio=0.8, min_length=5, max_length=20):
+    def __init__(self, file_path, train_ratio=0.97, min_length=5, max_length=20):
         self.file_path = file_path
         self.train_ratio = train_ratio
         self.min_length = min_length
@@ -31,22 +31,24 @@ class Data(object):
         self.len_val = [len(sentence) for sentence in self.x_val]
 
     def create_vocabulary(self):
-        for sentence in self.x_train:
-            for word in sentence:
-                if word not in self.vocab:
-                    self.vocab.add(word)
-                    self.word2index[word] = self.vocab_size
-                    self.index2word.append(word)
-                    self.word2count[word] = 0
-                    self.vocab_size += 1
+        for data in [self.x_train, self.y_train]:
+            for sentence in data:
+                for word in sentence:
+                    if word not in self.vocab:
+                        self.vocab.add(word)
+                        self.word2index[word] = self.vocab_size
+                        self.index2word.append(word)
+                        self.word2count[word] = 0
+                        self.vocab_size += 1
 
-                self.word2count[word] += 1
+                    self.word2count[word] += 1
 
     def replace_unk(self):
-        for i, sentence in enumerate(self.x_val):
-            for j, word in enumerate(sentence):
-                if word not in self.vocab:
-                    self.x_val[i][j] = "<UNK>"
+        for data in [self.x_val, self.y_val]:
+            for i, sentence in enumerate(data):
+                for j, word in enumerate(sentence):
+                    if word not in self.vocab:
+                        data[i][j] = "<UNK>"
 
     def replace_with_ind(self):
         for data in [self.x_train, self.y_train, self.x_val, self.y_val]:
@@ -61,31 +63,33 @@ class Data(object):
 
     def run(self):
         data = []
+        inp = []
+        out = []
         with open(self.file_path) as f:
             lines = f.readlines()
-
             for line in lines:
-                line = line.split()
-                length = len(line)
-                if length >= self.min_length and length <= self.max_length:
-                    data.append(["<SOS>"] + line)
+                data += line.split() + ["<EOS>"]
 
-            n_data = len(data)
+            for i in range(0, len(data), self.max_length):
+                inp += [data[i : i + self.max_length]]
+                out += [data[i + 1 : i + self.max_length + 1]]
+
+            if len(inp[-1]) < self.max_length:
+                inp.pop()
+                out.pop()
+
+            n_data = len(inp)
             print('Read %d lines' % (n_data))
+            train_len = int(self.train_ratio*n_data)
 
-            self.x_train = data[:int(self.train_ratio*n_data)]
-            self.x_val = data[int(self.train_ratio*n_data):]
-
-            self.x_train = sorted(self.x_train, key=len, reverse=True)
-            self.x_val = sorted(self.x_val, key=len, reverse=True)
+            self.x_train = inp[:train_len]
+            self.y_train = out[:train_len]
+            self.x_val = inp[train_len:]
+            self.y_val = out[train_len:]
 
             self.get_lengths()
             self.create_vocabulary()
             self.replace_unk()
-
-            for inp, out in zip([self.x_train, self.x_val], [self.y_train, self.y_val]):
-                for sentence in inp:
-                    out.append(sentence[1:] + ["<EOS>"])
 
             self.replace_with_ind()
             self.list_of_tensors()
