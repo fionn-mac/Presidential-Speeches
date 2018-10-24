@@ -27,18 +27,19 @@ class Train_Network(object):
         batch_size = input_variables.size()[1]
         target_length = target_variables.size()[0]
 
-        lm_optimizer.zero_grad()
         loss = 0
 
         lm_outputs, lm_hidden = self.lm(input_variables, input_lengths, lm_hidden)
         loss += criterion(lm_outputs, target_variables.view(batch_size, -1))
 
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.lm.parameters(), 0.25)
         lm_optimizer.step()
 
+        lm_optimizer.zero_grad()
         return loss.item() / target_length, lm_hidden
 
-    def evaluate(self, input_variables, seed_length):
+    def evaluate_and_decode(self, input_variables, seed_length):
         with torch.no_grad():
             ''' Pad all tensors in this batch to same length. '''
             input_variables = torch.nn.utils.rnn.pad_sequence(input_variables)
@@ -64,3 +65,21 @@ class Train_Network(object):
                     if self.use_cuda: lm_inputs = lm_inputs.cuda()
 
         return output_words
+
+    def evaluate(self, input_variables, input_lengths, target_variables, lm_hidden, criterion):
+        with torch.no_grad():
+            ''' Pad all tensors in this batch to same length. '''
+            input_variables = torch.nn.utils.rnn.pad_sequence(input_variables)
+            target_variables = torch.nn.utils.rnn.pad_sequence(target_variables)
+
+            lm_hidden = self.repackage_hidden(lm_hidden)
+
+            batch_size = input_variables.size()[1]
+            target_length = target_variables.size()[0]
+
+            loss = 0
+
+            lm_outputs, lm_hidden = self.lm(input_variables, input_lengths, lm_hidden)
+            loss += criterion(lm_outputs, target_variables.view(batch_size, -1))
+
+            return loss.item() / target_length, lm_hidden

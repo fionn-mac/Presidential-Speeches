@@ -2,23 +2,25 @@ import time
 import random
 
 from os import system
+from math import exp
 
 import torch
 import torch.nn as nn
 from torch import optim
-import numpy as np
 
 from helper import Helper
 
 class Run_Iterations(object):
     def __init__(self, model, train_in_seq, train_len, train_out_seq, word2index, index2word,
-                 batch_size, num_iters, learning_rate, tracking_seed=None,
+                 batch_size, num_iters, learning_rate, decay_rate, decay_after, tracking_seed=None,
                  val_in_seq=[], val_len=[], val_out_seq=[], fold_size=500000, print_every=1, plot_every=1):
         self.use_cuda = torch.cuda.is_available()
         self.model = model
         self.batch_size = batch_size
         self.num_iters = num_iters
         self.learning_rate = learning_rate
+        self.decay_rate = decay_rate
+        self.decay_after = decay_after
         self.criterion = nn.CrossEntropyLoss(ignore_index=0)
         self.print_every = print_every
         self.plot_every = plot_every
@@ -60,6 +62,7 @@ class Run_Iterations(object):
         plot_losses = []
         print_loss_total = 0  # Reset every self.print_every
         plot_loss_total = 0  # Reset every self.plot_every
+        best_val_loss = None
 
         lm_trainable_parameters = list(filter(lambda p: p.requires_grad, self.model.lm.parameters()))
 
@@ -76,27 +79,27 @@ class Run_Iterations(object):
         self.train_len = len_folds
         del in_folds, out_folds, len_folds
 
+        # Initialize optimizer
+        lm_optimizer = optim.SGD(lm_trainable_parameters, lr=self.learning_rate)
+        lm_optimizer.zero_grad()
         lm_hidden = self.model.lm.init_hidden(self.batch_size)
 
         print('Beginning Model Training.')
+        print('Number of Folds :', len(self.train_in_seq))
 
-        fold_number = 1
-        for in_fold, out_fold, len_fold in zip(self.train_in_seq, self.train_out_seq, self.train_len):
-            # Initialize optimizer
-            learning_rate = self.learning_rate
-            lm_optimizer = optim.Adam(lm_trainable_parameters, lr=learning_rate)
+        for epoch in range(1, self.num_iters + 1):
+            fold_number = 1
+            for in_fold, out_fold, len_fold in zip(self.train_in_seq, self.train_out_seq, self.train_len):
+                # Convert fold contents to cuda
+                if self.use_cuda:
+                    in_fold = self.help_fn.to_cuda(in_fold)
+                    out_fold = self.help_fn.to_cuda(out_fold)
 
-            # Convert fold contents to cuda
-            if self.use_cuda:
-                in_fold = self.help_fn.to_cuda(in_fold)
-                out_fold = self.help_fn.to_cuda(out_fold)
+                fold_size = len(in_fold)
+                fraction = fold_size // 10
 
-            fold_size = len(in_fold)
-            fraction = fold_size // 10
+                print('Starting Fold  :', fold_number)
 
-            print('Starting Fold  :', fold_number)
-
-            for epoch in range(1, self.num_iters + 1):
                 for i in range(0, fold_size, self.batch_size):
                     input_variables = in_fold[i : i + self.batch_size] # Batch Size x Sequence Length
                     target_variables = out_fold[i : i + self.batch_size] # Batch Size x Sequence Length
@@ -112,35 +115,34 @@ class Run_Iterations(object):
 
                     if i > 0 and (i - self.batch_size) // fraction < i // fraction:
                         now = time.time()
-                        print('Completed %.2f Percent of Epoch %d in %s Minutes' % ((i + self.batch_size) / fold_size * 100,
-                                                                                    epoch, self.help_fn.as_minutes(now - start)))
+                        print('Completed %.2f Percent of Fold %d in %s' % ((i + self.batch_size) / fold_size * 100,
+                                                                            fold_number, self.help_fn.as_minutes(now - start)))
 
-                        if self.tracking_seed is not None:
-                            self.evaluate_specific(self.tracking_seed, self.tracking_seed, self.tracking_seed.size()[0])
+                fold_number += 1
+                # Convert fold contents back to cpu
+                if self.use_cuda:
+                    in_fold = self.help_fn.to_cpu(in_fold)
+                    out_fold = self.help_fn.to_cpu(out_fold)
 
-                if epoch % self.print_every == 0:
-                    print_loss_avg = print_loss_total / self.print_every
-                    print_loss_total = 0
-                    print('%s (%d %d%%) %.4f' % (self.help_fn.time_slice(start, epoch / self.num_iters),
-                                                 epoch, epoch / self.num_iters * 100, print_loss_avg))
+            val_loss = self.evaluate_all()
+            print('-' * 89)
+            print('| End of Epoch {:3d} | Time: {:5.2f}s | Validation loss {:5.2f} | Validation perplexity {:8.2f}'.format(epoch, self.help_fn.time_slice(start, epoch / self.num_iters), val_loss, exp(val_loss)))
+            print('-' * 89)
 
-                if epoch % self.plot_every == 0:
-                    plot_loss_avg = plot_loss_total / self.plot_every
-                    plot_losses.append(plot_loss_avg)
-                    plot_loss_total = 0
+            # Save the model if the validation loss is the best we've seen so far.
+            if not best_val_loss or val_loss < best_val_loss:
+                best_val_loss = val_loss
+            else:
+                # Anneal the learning rate if no improvement has been seen in the validation dataset.
+                self.learning_rate /= 4.0
+                lm_optimizer = optim.SGD(lm_trainable_parameters, lr=self.learning_rate)
 
-                if epoch % 2 == 0:
-                    learning_rate /= 2
-                    lm_optimizer = optim.Adam(lm_trainable_parameters, lr=learning_rate)
+            if epoch % self.plot_every == 0:
+                plot_loss_avg = plot_loss_total / self.plot_every
+                plot_losses.append(plot_loss_avg)
+                plot_loss_total = 0
 
-            # Convert fold contents back to cpu
-            if self.use_cuda:
-                in_fold = self.help_fn.to_cpu(in_fold)
-                out_fold = self.help_fn.to_cpu(out_fold)
-
-            self.help_fn.show_plot(plot_losses)
-            fold_number += 1
-            print('\n')
+        self.help_fn.show_plot(plot_losses)
 
     def evaluate_specific(self, in_seq, out_seq, seed_length):
         input = [self.index2word[j] for j in in_seq[0]]
@@ -148,7 +150,7 @@ class Run_Iterations(object):
         print('>', input)
         print('~', seed_length)
 
-        output_words = self.model.evaluate(in_seq, seed_length)
+        output_words = self.model.evaluate_and_decode(in_seq, seed_length)
         try:
             target_index = output_words[0].index("<EOS>") + 1
         except ValueError:
@@ -168,10 +170,33 @@ class Run_Iterations(object):
 
         for i in range(n):
             ind = random.randrange(self.val_samples)
-            for seed_length in range(1, len(self.val_in_seq[ind]) // 2, 3):
+            # for seed_length in range(1, len(self.val_in_seq[ind]) // 2, 3):
                 # Get output for given seed
-                self.evaluate_specific(self.val_in_seq[ind].view(1, -1),
-                                       self.val_out_seq[ind].view(1, -1),
-                                       seed_length)
+            seed_length = random.randrange(len(self.val_in_seq[ind]) // 2)
+            self.evaluate_specific(self.val_in_seq[ind].view(1, -1),
+                                   self.val_out_seq[ind].view(1, -1),
+                                   seed_length)
 
             print('\n')
+
+    def evaluate_all(self):
+        total_loss = 0
+        lm_hidden = self.model.lm.init_hidden(self.batch_size)
+
+        if self.use_cuda:
+            val_in_seq = self.help_fn.to_cuda(self.val_in_seq)
+            val_out_seq = self.help_fn.to_cuda(self.val_out_seq)
+
+        for epoch in range(1, self.num_iters + 1):
+            for i in range(0, self.val_samples, self.batch_size):
+                input_variables = val_in_seq[i : i + self.batch_size] # Batch Size x Sequence Length
+                target_variables = val_out_seq[i : i + self.batch_size] # Batch Size x Sequence Length
+                input_lengths = val_len[i : i + self.batch_size]
+
+                if len(input_variables) != self.batch_size:
+                    continue
+
+                loss, lm_hidden = self.model.evaluate(input_variables, input_lengths, target_variables, lm_hidden, self.criterion)
+                total_loss += loss
+
+        del val_in_seq, val_out_seq
