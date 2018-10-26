@@ -188,7 +188,7 @@ class Run_Iterations(object):
             for i in range(0, self.val_samples, self.batch_size):
                 input_variables = val_in_seq[i : i + self.batch_size] # Batch Size x Sequence Length
                 target_variables = val_out_seq[i : i + self.batch_size] # Batch Size x Sequence Length
-                input_lengths = val_len[i : i + self.batch_size]
+                input_lengths = self.val_len[i : i + self.batch_size]
 
                 if len(input_variables) != self.batch_size:
                     continue
