@@ -8,8 +8,6 @@ class Train_Network(object):
         self.lm = lm
         self.index2word = index2word
         self.max_length = max_length
-        self.SOS_token = 1
-        self.EOS_token = 2
         self.use_cuda = torch.cuda.is_available()
 
     def repackage_hidden(self, hidden):
@@ -30,7 +28,8 @@ class Train_Network(object):
         loss = 0
 
         lm_outputs, lm_hidden = self.lm(input_variables, input_lengths, lm_hidden)
-        loss += criterion(lm_outputs, target_variables.view(batch_size, -1))
+
+        loss += criterion(lm_outputs, target_variables.permute(1, 0))
 
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.lm.parameters(), 0.25)
@@ -80,6 +79,6 @@ class Train_Network(object):
             loss = 0
 
             lm_outputs, lm_hidden = self.lm(input_variables, input_lengths, lm_hidden)
-            loss += criterion(lm_outputs, target_variables.view(batch_size, -1))
+            loss += criterion(lm_outputs, target_variables.permute(1, 0))
 
             return loss.item() / target_length, lm_hidden

@@ -34,7 +34,7 @@ class Run_Iterations(object):
         self.train_out_seq = train_out_seq
         self.train_samples = len(self.train_in_seq)
         self.fold_size = self.train_samples
-        if fold_size: self.fold_size = fold_size
+        if fold_size: self.fold_size = fold_size + fold_size % self.batch_size
 
         # Validation data.
         self.val_in_seq = val_in_seq
@@ -119,10 +119,7 @@ class Run_Iterations(object):
                                                                             fold_number, self.help_fn.as_minutes(now - start)))
 
                 fold_number += 1
-                # Convert fold contents back to cpu
-                if self.use_cuda:
-                    in_fold = self.help_fn.to_cpu(in_fold)
-                    out_fold = self.help_fn.to_cpu(out_fold)
+                del in_fold, out_fold
 
             val_loss = self.evaluate_all()
             print('-' * 89)
